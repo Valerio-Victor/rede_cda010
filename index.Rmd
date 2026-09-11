@@ -53,8 +53,16 @@ use_search(show_icon = TRUE)
 ```
 
 ```{r import, message=FALSE, warning=FALSE, include=FALSE}
+# PACOTES:
 library(googlesheets4)
+library(igraph)
+library(visNetwork)
+library(ggplot2)
+library(plotly)
 
+set.seed(123)
+
+# IMPORTAÇÃO DOS DADOS:
 googlesheets4::gs4_auth(
   email = Sys.getenv("GOOGLE_EMAIL")
 )
@@ -64,70 +72,419 @@ bd_bruto <- googlesheets4::read_sheet(
 ) %>% 
   janitor::clean_names()
 
+
+# ORGANIZAÇÃO DOS DADOS:
 colnames(bd_bruto) <- c('carimbo','votante',
                         'idade','genero',
                         'jeitinho','hierarquia',
                         'cotas','conservadorismo',
                         'indicado_01','indicado_02')
 
-arestas <- bd_bruto %>%
+# TRATAMENTO DOS DADOS
+piramide <- bd_bruto %>% 
+  dplyr::filter(genero != 'Prefiro não responder') %>% 
+  dplyr::transmute(
+    idade = cut(idade,
+                breaks = c(17, 19, 21, 24, 29, Inf),
+                labels = c("18–19", "20–21", "22–24", "25–29", "30+")), 
+    genero = genero) %>% 
+  table() %>% 
+  as.data.frame() %>% 
+  dplyr::mutate(Freq = Freq/sum(Freq)) %>% 
+dplyr::mutate(ordem_idade = dplyr::case_when(
+  idade == '18–19' ~ 1,
+  idade == '20–21' ~ 2,
+  idade == '22–24' ~ 3,
+  idade == '25–29' ~ 4,
+  idade == '30+' ~ 5)) %>% 
+  dplyr::arrange(ordem_idade)
+
+cabeca <- bd_bruto %>% 
+  dplyr::filter(genero != 'Prefiro não responder') %>% 
+  dplyr::transmute(genero = genero,
+                   Jeitinho = jeitinho,
+                   Hierarquia = hierarquia,
+                   Cotas = cotas,
+                   Conservadorismo = conservadorismo) %>% 
+  tidyr::pivot_longer(cols = -genero, 
+                      names_to = 'ref',
+                      values_to = 'valor') 
+
+nos <- bd_bruto %>% 
+  dplyr::select(
+    votante, genero) %>% 
+  dplyr::rename('id' = votante) %>% 
+  dplyr::mutate(color = '#2F4F4F')
+
+nos_genero <- bd_bruto %>% 
+  dplyr::select(
+    votante, genero) %>% 
+  dplyr::rename('id' = votante) %>% 
+  dplyr::mutate(color = dplyr::case_when(
+    genero == 'Mulher cisgênero' ~ '#EAD7B7',
+    TRUE ~ '#2F4F4F'),
+    title = paste0('Gênero: ', genero))
+
+nos_jeitinho <- bd_bruto %>% 
+  dplyr::select(
+    votante, jeitinho) %>% 
+  dplyr::mutate(
+    jeitinho_c = ifelse(jeitinho >= 4, 'Favorável ao Jeitinho','Contrário ao Jeitinho')) %>% 
+  dplyr::rename('id' = votante) %>% 
+  dplyr::mutate(color = dplyr::case_when(
+    jeitinho_c == 'Favorável ao Jeitinho' ~ '#EAD7B7',
+    TRUE ~ '#2F4F4F'), 
+    title = paste0(jeitinho_c, ': Nota = ', jeitinho))
+
+nos_hierarquia <- bd_bruto %>% 
+  dplyr::select(
+    votante, hierarquia) %>% 
+  dplyr::mutate(
+    hierarquia_c = ifelse(hierarquia >= 4, 'Vertical','Horizontal')) %>% 
+  dplyr::rename('id' = votante) %>% 
+  dplyr::mutate(color = dplyr::case_when(
+    hierarquia_c == 'Vertical' ~ '#EAD7B7',
+    TRUE ~ '#2F4F4F'),
+    title = paste0(hierarquia_c, ': Nota = ', hierarquia))
+
+nos_cotas <- bd_bruto %>% 
+  dplyr::select(
+    votante, cotas) %>% 
+  dplyr::mutate(
+    cotas_c = ifelse(cotas >= 4, 'Favorável à Cotas','Contrário à Cotas')) %>% 
+  dplyr::rename('id' = votante) %>% 
+  dplyr::mutate(color = dplyr::case_when(
+    cotas_c == 'Favorável à Cotas' ~ '#EAD7B7',
+    TRUE ~ '#2F4F4F'),
+    title = paste0(cotas_c, ': Nota = ', cotas))
+
+nos_conservadorismo <- bd_bruto %>% 
+  dplyr::select(
+    votante, conservadorismo) %>% 
+  dplyr::mutate(
+    conservadorismo_c = ifelse(conservadorismo >= 4, 'Conservador','Progressista')) %>% 
+  dplyr::rename('id' = votante) %>% 
+  dplyr::mutate(color = dplyr::case_when(
+    conservadorismo_c == 'Conservador' ~ '#EAD7B7',
+    TRUE ~ '#2F4F4F'),
+    title = paste0(conservadorismo_c, ': Nota = ', conservadorismo))
+
+arestas <- bd_bruto %>% 
   dplyr::select(votante, indicado_01, indicado_02) %>% 
   tidyr::pivot_longer(cols = -votante,
-                      names_to = 'ordem',
-                      values_to = 'indicado') %>% 
-  dplyr::select(-ordem)
+                      names_to = 'ref',
+                      values_to = 'indicador') %>% 
+  dplyr::transmute(from = votante,
+                   to = indicador)
 
-library(igraph)
-library(ggplot2)
-library(plotly)
-
-grafico_rede <- ggraph(
-  rede,
-  layout = "fr"
-) +
-  geom_edge_link(
-    alpha = 0.4
-  ) +
-  geom_node_point(
-    size = 6
-  ) +
-  theme_void()
-
-grafico <- plotly::ggplotly(grafico_rede)
-
-
+assortatividade <- data.frame(
+  Fatores = c('Gênero','Jeitinho','Hierarquia','Cotas','Conservadorismo', 'Idade'),
+  Valores = c(0.37, -0.06, 0.26, 0.36, 0.27, 0.37)
+) 
 ```
 
-```{r}
-library(visNetwork)
-library(igraph)
 
-rede <- igraph::graph_from_data_frame(
-  d = arestas,
-  directed = TRUE,
-)
+## APRESENTAÇÃO
+----
 
-nos <- data.frame(
-  id = V(rede)$name,
-  label = NA
-)
+- [**CICLO DE CIÊNCIA DE DADOS**](#topico_00)
 
-arestas_vis <- igraph::as_data_frame(rede, what = "edges") |>
-  dplyr::transmute(
-    from = from,
-    to = to
+- [**ANÁLISE EXPLORATÓRIA DE DADOS**](#topico_01)
+
+- [**STORYTELLING COM DADOS**](#topico_02)
+
+
+---
+class: inverse, center, middle 
+name: topico_00
+
+# CICLO DE CIÊNCIA DE DADOS
+
+```{r, echo = F, fig.align = 'center', fig.alt= 'Gif da série the office para apresentar o professor', out.width = '50%'}
+knitr::include_graphics('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExdGF3dTJuYWp6ZXVybzh4eHQ1YWFrM3c2dTYydmgyZTFyanYxZmZpaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xT9C25UNTwfZuk85WP/giphy.gif')
+```
+
+---
+<div style="text-align: justify">
+## CICLO DE CIÊNCIA DE DADOS
+----
+
+```{r, echo = F, fig.align = 'center', out.width = '75%'}
+knitr::include_graphics('base.PNG')
+```
+
+---
+<div style="text-align: justify">
+
+# CICLO DE CIÊNCIA DE DADOS
+----
+
+- **Importar**: Trazer os dados de diferentes fontes (planilhas, bancos de dados, 
+APIs, arquivos de texto etc.) para o ambiente R, garantindo que possam ser 
+utilizados nas análises.
+
+- **Organizar**: Estruturar e limpar os dados, ajustando formatos, corrigindo 
+inconsistências e preparando-os para etapas posteriores.
+
+- **Transformar**: Manipular variáveis e criar novas medidas ou indicadores que 
+melhor representem o fenômeno de interesse.
+
+---
+<div style="text-align: justify">
+
+# CICLO DE CIÊNCIA DE DADOS
+----
+
+- **Visualizar**: Explorar padrões e tendências por meio de gráficos e tabelas, 
+auxiliando na compreensão inicial e na comunicação das informações.
+
+- **Modelar**: Aplicar métodos estatísticos e de aprendizado de máquina para 
+explicar relações ou prever comportamentos com base nos dados.
+
+- **Comunicar**: Apresentar resultados de forma clara e acessível, utilizando 
+relatórios, painéis ou apresentações que traduzam a análise para diferentes públicos.
+
+---
+class: inverse, center, middle 
+name: topico_01
+
+# ANÁLISE EXPLORATÓRIA DE DADOS
+
+```{r, echo = F, fig.align = 'center', fig.alt= 'Gif da série the office para apresentar o professor', out.width = '50%'}
+knitr::include_graphics('https://media4.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3aWpydWQ0MjEydnU4a2dqYnQzeG41M2Z1ZXg1ejN5N2d1ejg2NWV3NyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/bgtDpX1lov8skf3juS/200.webp')
+```
+
+---
+<div style="text-align: justify">
+## ANÁLISE EXPLORATÓRIA DE DADOS
+----
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+grafico_piramide <- piramide %>% 
+  dplyr::mutate(freq_genero = ifelse(genero == 'Mulher cisgênero', -1*Freq, Freq)) %>% 
+  dplyr::mutate(idade = forcats::fct_reorder(idade, ordem_idade)) %>% 
+  ggplot() + 
+  geom_col(aes(x = freq_genero, y = idade, fill = as.factor(genero),
+               group = 1,
+               text = paste0('Proporção: ', scales::percent(abs(freq_genero),
+                                                            decimal.mark = ',',
+                                                            accuracy = 0.01)))) +
+  scale_x_continuous(labels = function(x) scales::percent(abs(x)),
+                     limits = c(-0.4,0.4)) + 
+  scale_fill_manual(values = c('Mulher cisgênero'= '#EAD7B7',
+                               'Homem cisgênero'= '#2F4F4F')) + 
+  labs(x = 'Frequência',
+       y = 'Faixa Etária',
+       fill = '') + 
+  theme_light() + 
+  theme(legend.position = 'bottom')
+
+ggplotly(grafico_piramide, 
+         tooltip = 'text', 
+         width = 1100,
+         height = 550)
+```
+
+---
+<div style="text-align: justify">
+## ANÁLISE EXPLORATÓRIA DE DADOS
+----
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# grafico_cabeca <- cabeca %>% 
+#   ggplot() +
+#   geom_boxplot(aes(x = ref, y = valor, fill = as.factor(genero)),
+#                position = position_dodge2(
+#                  width = 0.8,
+#                  preserve = "single"),
+#                width = 0.65,
+#                alpha = 0.85) + 
+#   labs(x = '',
+#        y = '',
+#        fill = '') + 
+#   scale_fill_manual(
+#     values = c('#2F4F4F', '#EAD7B7')) +
+#   theme_light() + 
+#   theme(legend.position = 'bottom')
+# 
+# ggplotly(grafico_cabeca)
+
+plotly::plot_ly(
+  data = cabeca,
+  x = ~ref,
+  y = ~valor,
+  color = ~genero,
+  colors = c("#2F4F4F", "#EAD7B7"),
+  type = "box",
+  width = 1100,
+  height = 550
+) %>% 
+  plotly::layout(
+    boxmode = "group",
+    xaxis = list(title = ""),
+    yaxis = list(title = ""),
+    legend = list(
+      orientation = "h",
+      x = 0.5,
+      xanchor = "center"
+    )
   )
+```
 
-visNetwork(nos, arestas_vis) |>
+---
+<div style="text-align: justify">
+## ANÁLISE EXPLORATÓRIA DE DADOS
+----
+
+- _Sociograma da Turma_ 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+visNetwork(nodes = nos, 
+           edges = arestas,
+           width = "100%",
+           height = "450px") %>% 
+  visEdges(arrows = "to") %>% 
+  visLayout(randomSeed = 123) %>% 
   visPhysics(stabilization = TRUE)
 ```
 
-
-# APRESENTAÇÃO
+---
+<div style="text-align: justify">
+## ANÁLISE EXPLORATÓRIA DE DADOS
 ----
 
-- [**TÓPICO 01**](#topico_01)
+- _Com qual gênero você se identifica?_
 
-- [**TÓPICO 02**](#topico_02)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+visNetwork(nodes = nos_genero, 
+           edges = arestas,
+           width = "100%",
+           height = "450px") %>% 
+  visEdges(arrows = "to") %>% 
+  visLayout(randomSeed = 123) %>% 
+  visPhysics(stabilization = TRUE)
+```
 
-- [**TÓPICO 03**](#topico_03)
+---
+<div style="text-align: justify">
+## ANÁLISE EXPLORATÓRIA DE DADOS
+----
+
+- _Quando um procedimento é muito demorado, recorrer a alguém conhecido para agilizar o atendimento é compreensível._
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+visNetwork(nodes = nos_jeitinho, 
+           edges = arestas,
+           width = "100%",
+           height = "450px") %>% 
+  visEdges(arrows = "to") %>% 
+  visLayout(randomSeed = 123) %>% 
+  visPhysics(stabilization = TRUE)
+```
+
+---
+<div style="text-align: justify">
+## ANÁLISE EXPLORATÓRIA DE DADOS
+----
+
+- _Em uma organização, as decisões mais importantes devem ser tomadas por quem ocupa posições superiores, mesmo quando os demais discordam._
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+visNetwork(nodes = nos_hierarquia, 
+           edges = arestas,
+           width = "100%",
+           height = "450px") %>% 
+  visEdges(arrows = "to") %>% 
+  visLayout(randomSeed = 123) %>% 
+  visPhysics(stabilization = TRUE)
+```
+
+---
+<div style="text-align: justify">
+## ANÁLISE EXPLORATÓRIA DE DADOS
+----
+
+- _Criar oportunidades específicas para determinados grupos sociais tende a ser mais injusto do que tratar todas as pessoas exatamente da mesma forma._
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+visNetwork(nodes = nos_cotas, 
+           edges = arestas,
+           width = "100%",
+           height = "450px") %>% 
+  visEdges(arrows = "to") %>% 
+  visLayout(randomSeed = 123) %>% 
+  visPhysics(stabilization = TRUE)
+```
+
+---
+<div style="text-align: justify">
+## ANÁLISE EXPLORATÓRIA DE DADOS
+----
+
+- _Os costumes tradicionais devem orientar as escolhas das pessoas sobre relacionamentos e formação da família._
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+visNetwork(nodes = nos_jeitinho, 
+           edges = arestas,
+           width = "100%",
+           height = "450px") %>% 
+  visEdges(arrows = "to") %>% 
+  visLayout(randomSeed = 123) %>% 
+  visPhysics(stabilization = TRUE)
+```
+
+---
+<div style="text-align: justify">
+## ANÁLISE EXPLORATÓRIA DE DADOS
+----
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+grafico_assortatividade <- assortatividade %>% 
+  mutate(Fatores = forcats::fct_reorder(Fatores, abs(Valores))) %>% 
+  ggplot() + 
+  geom_col(aes(x = Valores, y = Fatores), fill = "#2F4F4F") + 
+  labs(x = 'Assortatividade',
+       y = '',
+       fill = '') + 
+  theme_light() + 
+  scale_x_continuous(labels = scales::number_format(decimal.mark = ',')) + 
+  theme(legend.position = 'bottom')
+
+ggplotly(grafico_assortatividade, 
+         width = 1100,
+         height = 550)
+```
+
+
+---
+class: inverse, center, middle 
+name: topico_02
+
+# STORYTELLING COM DADOS
+
+```{r, echo = F, fig.align = 'center', fig.alt= 'Gif da série the office para apresentar o professor', out.width = '50%'}
+knitr::include_graphics('https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExZWxxb21rMTB2NzZpYzFzeTQwYjhncnY0OHlqbjFxajJ2MWg0dnJvNyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/PSCb5SVDbSwFkY7w5w/giphy.webp')
+```
+
+---
+<div style="text-align: justify">
+## STORYTELLING COM DADOS
+----
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

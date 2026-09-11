@@ -42,7 +42,7 @@ arestas <- bd_bruto %>%
   dplyr::filter(to != 'CAUE MORAIS DA SILVA') %>% 
   dplyr::filter(to != 'ITALO DIAS REIS')
 
-visNetwork(nodes = nos, 
+visNetwork(nodes = nos_genero, 
            edges = arestas) %>% 
   visEdges(arrows = "to") %>% 
   visPhysics(stabilization = TRUE)
