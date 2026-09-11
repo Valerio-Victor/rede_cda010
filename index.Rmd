@@ -53,14 +53,75 @@ use_search(show_icon = TRUE)
 ```
 
 ```{r import, message=FALSE, warning=FALSE, include=FALSE}
-# googlesheets4::gs4_auth(
-#   email = Sys.getenv("GOOGLE_EMAIL")
-# )
-# 
-# dados <- googlesheets4::read_sheet(
-#   ss = Sys.getenv("GOOGLE_SHEET_ID")
-# )
+library(googlesheets4)
+
+googlesheets4::gs4_auth(
+  email = Sys.getenv("GOOGLE_EMAIL")
+)
+
+bd_bruto <- googlesheets4::read_sheet(
+  ss = Sys.getenv("GOOGLE_SHEET_ID")
+) %>% 
+  janitor::clean_names()
+
+colnames(bd_bruto) <- c('carimbo','votante',
+                        'idade','genero',
+                        'jeitinho','hierarquia',
+                        'cotas','conservadorismo',
+                        'indicado_01','indicado_02')
+
+arestas <- bd_bruto %>%
+  dplyr::select(votante, indicado_01, indicado_02) %>% 
+  tidyr::pivot_longer(cols = -votante,
+                      names_to = 'ordem',
+                      values_to = 'indicado') %>% 
+  dplyr::select(-ordem)
+
+library(igraph)
+library(ggplot2)
+library(plotly)
+
+grafico_rede <- ggraph(
+  rede,
+  layout = "fr"
+) +
+  geom_edge_link(
+    alpha = 0.4
+  ) +
+  geom_node_point(
+    size = 6
+  ) +
+  theme_void()
+
+grafico <- plotly::ggplotly(grafico_rede)
+
+
 ```
+
+```{r}
+library(visNetwork)
+library(igraph)
+
+rede <- igraph::graph_from_data_frame(
+  d = arestas,
+  directed = TRUE,
+)
+
+nos <- data.frame(
+  id = V(rede)$name,
+  label = NA
+)
+
+arestas_vis <- igraph::as_data_frame(rede, what = "edges") |>
+  dplyr::transmute(
+    from = from,
+    to = to
+  )
+
+visNetwork(nos, arestas_vis) |>
+  visPhysics(stabilization = TRUE)
+```
+
 
 # APRESENTAÇÃO
 ----
