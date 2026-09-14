@@ -193,7 +193,6 @@ assortatividade <- data.frame(
 
 - [**STORYTELLING COM DADOS**](#topico_02)
 
-
 ---
 class: inverse, center, middle 
 name: topico_00
@@ -291,24 +290,6 @@ ggplotly(grafico_piramide,
 ----
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-# grafico_cabeca <- cabeca %>% 
-#   ggplot() +
-#   geom_boxplot(aes(x = ref, y = valor, fill = as.factor(genero)),
-#                position = position_dodge2(
-#                  width = 0.8,
-#                  preserve = "single"),
-#                width = 0.65,
-#                alpha = 0.85) + 
-#   labs(x = '',
-#        y = '',
-#        fill = '') + 
-#   scale_fill_manual(
-#     values = c('#2F4F4F', '#EAD7B7')) +
-#   theme_light() + 
-#   theme(legend.position = 'bottom')
-# 
-# ggplotly(grafico_cabeca)
-
 plotly::plot_ly(
   data = cabeca,
   x = ~ref,
@@ -337,6 +318,7 @@ plotly::plot_ly(
 ----
 
 - _Sociograma da Turma_ 
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 visNetwork(nodes = nos, 
            edges = arestas,
@@ -370,6 +352,7 @@ visNetwork(nodes = nos_genero,
 ----
 
 - _Quando um procedimento é muito demorado, recorrer a alguém conhecido para agilizar o atendimento é compreensível._
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 visNetwork(nodes = nos_jeitinho, 
            edges = arestas,
@@ -403,6 +386,7 @@ visNetwork(nodes = nos_hierarquia,
 ----
 
 - _Criar oportunidades específicas para determinados grupos sociais tende a ser mais injusto do que tratar todas as pessoas exatamente da mesma forma._
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 visNetwork(nodes = nos_cotas, 
            edges = arestas,
@@ -421,7 +405,7 @@ visNetwork(nodes = nos_cotas,
 - _Os costumes tradicionais devem orientar as escolhas das pessoas sobre relacionamentos e formação da família._
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-visNetwork(nodes = nos_jeitinho, 
+visNetwork(nodes = nos_conservadorismo, 
            edges = arestas,
            width = "100%",
            height = "450px") %>% 
