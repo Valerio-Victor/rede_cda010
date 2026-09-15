@@ -189,7 +189,7 @@ assortatividade <- data.frame(
 
 - [**CICLO DE CIÊNCIA DE DADOS**](#topico_00)
 
-- [**ANÁLISE EXPLORATÓRIA DE DADOS**](#topico_01)
+- [**ANÁLISE EXPLORATÓRIA**](#topico_01)
 
 - [**STORYTELLING COM DADOS**](#topico_02)
 
@@ -209,7 +209,7 @@ knitr::include_graphics('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExdGF3d
 ----
 
 ```{r, echo = F, fig.align = 'center', out.width = '75%'}
-knitr::include_graphics('base.PNG')
+knitr::include_graphics('base.png')
 ```
 
 ---
